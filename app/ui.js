@@ -52,6 +52,50 @@ export function looksLikePan(text) {
   return /(?:\d[ -]?){13,19}/.test(String(text ?? ''));
 }
 
+/** Distinct sorted filter values taken from the counted events only. */
+export function filterOptions(snapshot) {
+  const ev = snapshot.contributions.events;
+  const uniq = (xs) => [...new Set(xs)].sort();
+  return { category: uniq(ev.map((e) => e.category)), eventType: uniq(ev.map((e) => e.eventType)), month: uniq(ev.map((e) => e.reportedDate.slice(0, 7))) };
+}
+
+/** queryContributions() query from form values; a blank value means no filter on that field. */
+export function buildQuery(values) {
+  const q = {};
+  for (const k of ['category', 'eventType', 'month', 'search', 'sortBy', 'order']) if (values[k]) q[k] = values[k];
+  return q;
+}
+
+/** Plain-text rows for refunds, excluded records and warnings, read straight from the snapshot. */
+export function explanationRows(snapshot) {
+  const m = snapshot.money;
+  return [
+    `Refunds: ${m.refunds.length}, USD ${m.refundTotalUsd} of USD ${m.settledGrossUsd} settled gross. ${m.note}`,
+    ...m.refunds.map((r) => `Refund ${r.refundId} on ${r.transactionId} (${r.reportedDate}): USD ${r.amountUsd}`),
+    ...snapshot.exclusions.events.map((e) => `Excluded event ${e.eventType} ${e.eventId} on ${e.transactionId} (reported ${e.reportedDate}): ${e.reason}`),
+    ...snapshot.exclusions.transactions.map((t) => `Excluded transaction ${t.transactionId} (${t.status}, settled ${t.settledDate ?? 'never'}): ${t.reason}`),
+    ...snapshot.warnings.map((w) => `Warning ${w.code}: ${w.message}`),
+  ];
+}
+
+/** Plain-text rows for a compareScenarios() comparison. */
+export function comparisonRows(c) {
+  const side = (name, s) => {
+    const ev = s.evaluation;
+    const ratio = ev.ratio ? `${ev.ratio.percent} (${ev.ratio.bps} bps)` : 'undefined';
+    return `${name} ${s.rule.id} v${s.rule.version}: ${ev.numerator}/${ev.denominator} = ${ratio}, ${ev.state}`;
+  };
+  const ids = (xs) => xs.map((e) => e.eventId ?? String(e)).join(', ') || 'none';
+  const diff = c.ratioDifference ? `${c.ratioDifference.differenceFraction} (${c.ratioDifference.bps} bps)` : 'undefined';
+  return [
+    side('Baseline', c.baseline),
+    side('Scenario', c.scenario),
+    `Numerator delta ${c.numeratorDelta}; ratio difference ${diff}`,
+    `Counted only in baseline: ${ids(c.eventsCountedOnlyInBaseline)}; only in scenario: ${ids(c.eventsCountedOnlyInScenario)}`,
+    c.note,
+  ];
+}
+
 export function exportFilename(snapshot, ext) {
   return `disputeradar-${snapshot.scope.merchantId}-${snapshot.scope.period}-${snapshot.snapshotId.slice(0, 12)}.${ext}`;
 }

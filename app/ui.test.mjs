@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SCENARIOS, scenarioById, esc, summaryCards, findingLabel, resultState, errorSummary, looksLikePan, exportFilename } from './ui.js';
-import { generateDrSyn001, createSnapshot, serializeReportCsv } from '../src/index.js';
+import { SCENARIOS, scenarioById, esc, summaryCards, findingLabel, resultState, errorSummary, looksLikePan, exportFilename, filterOptions, buildQuery, explanationRows, comparisonRows } from './ui.js';
+import { generateDrSyn001, createSnapshot, serializeReportCsv, compareScenarios, queryContributions } from '../src/index.js';
 
 const fx = generateDrSyn001();
 const run = (id) => {
@@ -59,4 +59,26 @@ test('index.html structural requirements', () => {
   assert.doesNotMatch(html, /https?:\/\//);
   assert.match(html, /inert/);
   assert.equal(SCENARIOS.length, 5);
+});
+
+test('journey helpers: filters come from counted events and drive real engine queries', () => {
+  const { result } = run('M1_BASELINE');
+  const o = filterOptions(result.snapshot);
+  assert.deepEqual(o.eventType, ['DISPUTE', 'FRAUD']);
+  assert.deepEqual(o.month, ['2026-10']);
+  assert.deepEqual(buildQuery({ category: '', eventType: 'FRAUD', search: '', sortBy: 'eventId' }), { eventType: 'FRAUD', sortBy: 'eventId' });
+  const q = queryContributions(result.snapshot, buildQuery({ eventType: 'FRAUD' }));
+  assert.equal(q.total, result.snapshot.contributions.byType.FRAUD);
+});
+
+test('journey helpers: refund and late-report explanations and the rule-2 comparison come from the engine', () => {
+  const { result, session } = run('M1_BASELINE');
+  const why = explanationRows(result.snapshot);
+  assert.ok(why.some((r) => r.startsWith('Refunds: ')));
+  for (const e of result.snapshot.exclusions.events) assert.ok(why.some((r) => r.includes(e.eventId) && r.includes(e.reason)));
+  const c = compareScenarios({ dataset: fx.dataset, merchantId: 'M1', period: fx.period, session, baselinePolicySet: fx.policySets.BASELINE_V1, scenarioPolicySet: fx.policySets.SCENARIO_V2_UNIQUE_TRANSACTION });
+  const rows = comparisonRows(c.comparison);
+  assert.ok(rows[0].includes(c.comparison.baseline.evaluation.ratio.percent));
+  assert.ok(rows[1].includes(c.comparison.scenario.evaluation.ratio.percent));
+  assert.ok(rows[2].includes(String(c.comparison.numeratorDelta)));
 });
