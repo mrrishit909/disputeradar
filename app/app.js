@@ -58,7 +58,7 @@ function closeDetail() {
 }
 
 function run() {
-  const sc = scenarioById($('scenario').value);
+  const sc = scenarioById($('fixture-select').value);
   if (!sc) return;
   session = { allowedMerchantIds: [sc.sessionMerchantId] };
   result = createSnapshot({ dataset: fixture.dataset, policySet: fixture.policySets[sc.policySet], merchantId: sc.merchantId, period: fixture.period, session });
@@ -76,7 +76,7 @@ function download(ext) {
   URL.revokeObjectURL(a.href);
 }
 
-for (const s of SCENARIOS) $('scenario').insertAdjacentHTML('beforeend', `<option value="${esc(s.id)}">${esc(s.label)}</option>`);
+for (const s of SCENARIOS) $('fixture-select').insertAdjacentHTML('beforeend', `<option value="${esc(s.id)}">${esc(s.label)}</option>`);
 setText('synthetic-label', SYNTHETIC_LABEL);
 $('run').addEventListener('click', run);
 $('export-json').addEventListener('click', () => download('json'));
