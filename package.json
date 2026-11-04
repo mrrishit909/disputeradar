@@ -1,0 +1,16 @@
+{
+  "name": "disputeradar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DisputeRadar synthetic vertical slice: dependency-free pure engine for fictional, illustrative dispute/fraud ratio rules. Not VAMP, Mastercard or processor policy.",
+  "type": "module",
+  "exports": "./src/index.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "fixtures": "node scripts/write-fixtures.js"
+  },
+  "license": "UNLICENSED"
+}
