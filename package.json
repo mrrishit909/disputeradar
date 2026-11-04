@@ -9,8 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --test test/",
-    "fixtures": "node scripts/write-fixtures.js"
+    "test": "node --test \"test/*.test.js\""
   },
   "license": "UNLICENSED"
 }

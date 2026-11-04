@@ -45,7 +45,7 @@ export function checkKeys(obj, required, optional, path, errors) {
     if (typeof key !== 'string') {
       errors.push(err(ERROR_CODE.UNKNOWN_FIELD, 'Symbol keys are not accepted.', path));
     } else if (!allowed.has(key)) {
-      if (SENSITIVE_FIELD_PATTERN.test(key)) {
+      if (isSensitiveName(key)) {
         errors.push(err(ERROR_CODE.SENSITIVE_FIELD_REJECTED,
           'Cardholder-data style field is never accepted (no PAN/CVV/expiry).', `${path}/${safeKey(key)}`));
       } else {
@@ -58,6 +58,11 @@ export function checkKeys(obj, required, optional, path, errors) {
       errors.push(err(ERROR_CODE.MISSING_FIELD, `Missing required field "${key}".`, `${path}/${key}`));
     }
   }
+}
+
+/** Cardholder-data style field/column name; camelCase is split first (cardCvv -> card_Cvv). */
+export function isSensitiveName(key) {
+  return SENSITIVE_FIELD_PATTERN.test(String(key).replace(/([a-z0-9])([A-Z])/g, '$1_$2'));
 }
 
 /** Field names echoed in errors are truncated and stripped of control characters. */

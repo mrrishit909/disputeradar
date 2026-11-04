@@ -51,6 +51,7 @@ export const IMPORT_LIMITS = deepFreeze({
   MAX_NOTE_CHARS: 2_000,
   MAX_ERRORS_REPORTED: 100,
   MAX_RULES: 50,
+  MAX_REPORT_BYTES: 8_388_608,
 });
 
 /** $10,000,000.00 per amount; 5,000-row sums stay far below Number.MAX_SAFE_INTEGER. */
