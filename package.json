@@ -11,7 +11,8 @@
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
     "test:ui": "node --test app/ui.test.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs"
   },
   "license": "UNLICENSED"
 }
