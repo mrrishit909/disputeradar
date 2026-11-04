@@ -9,7 +9,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "test:ui": "node --test app/ui.test.mjs",
+    "serve": "node scripts/serve.mjs"
   },
   "license": "UNLICENSED"
 }
