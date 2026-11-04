@@ -82,9 +82,15 @@ await check('host CSP header enforced (form-action none, connect-src none)', asy
   assert.match(csp, /connect-src 'none'/);
 });
 
+await check('origin banner: idle before any run; notice disclaims content inspection', async () => {
+  assert.match(await text('#origin-label'), /^No data loaded yet\./);
+  assert.match(await text('#origin-notice'), /do not inspect content and cannot detect or prevent real, personal or sensitive data/);
+});
+
 await check('golden run: 5/10 = 5000 bps vs 2500 threshold', async () => {
   await page.selectOption('#fixture-select', 'M1_BASELINE');
   await page.click('#run');
+  assert.match(await text('#origin-label'), /^BUNDLED SYNTHETIC DEMO - built-in fixture DR-SYN-001/);
   assert.equal(await card('Numerator (events)'), '5');
   assert.equal(await card('Denominator (settled sales)'), '10');
   assert.equal(await card('Ratio (bps)'), '5000');
@@ -125,6 +131,8 @@ await check('JSON + CSV downloads under CSP match the shown snapshot', async () 
   assert.equal(parsed.ok, true);
   baselineId = parsed.snapshot.snapshotId;
   assert.equal(parsed.snapshot.evaluation.numerator, 5);
+  assert.equal(JSON.parse(j.body).dataOrigin, 'BUNDLED_SYNTHETIC_DEMO');
+  assert.equal(parsed.origin.effective, 'UNVERIFIED_USER_SUPPLIED', 'a re-read report file is never trusted');
   assert.equal(j.name, `disputeradar-M1-2026-10-${baselineId.slice(0, 12)}.json`);
   const c = await download('#export-csv');
   assert.equal(c.name, `disputeradar-M1-2026-10-${baselineId.slice(0, 12)}.csv`);
@@ -135,7 +143,9 @@ await check('JSON + CSV downloads under CSP match the shown snapshot', async () 
 await check('valid late-event reimport (form submit) shows a diffSnapshots delta and a new snapshot', async () => {
   await page.click('#ex-valid');
   await page.click('#reimport-run');
-  assert.match(await text('#reimport-status'), /^Reimported JSON \(3 record\(s\), input sha256 [0-9a-f]{12}\)\. New snapshot [0-9a-f]{12} is now shown and exported\.$/);
+  assert.match(await text('#reimport-status'), /^Reimported JSON \(3 record\(s\), input sha256 [0-9a-f]{12}\)\. New snapshot [0-9a-f]{12} is now shown and exported\. Data origin: UNVERIFIED_USER_SUPPLIED\.$/);
+  assert.match(await text('#origin-label'), /^UNVERIFIED USER-SUPPLIED DATA - /);
+  assert.equal(await page.getAttribute('#origin-label', 'data-origin'), 'UNVERIFIED_USER_SUPPLIED');
   const d = await rows('#delta');
   assert.ok(d[0].startsWith(`Baseline snapshot ${baselineId.slice(0, 12)} is retained unchanged`), d[0]);
   assert.ok(d[0].endsWith('merchant M1, period 2026-10, rule DEMO-EVENT-COUNT v1.'), d[0]);
@@ -154,7 +164,12 @@ await check('export after reimport carries the new snapshot (6/10) with the base
   newId = parsed.snapshot.snapshotId;
   assert.notEqual(newId, baselineId);
   assert.equal(parsed.snapshot.evaluation.numerator, 6);
-  assert.equal(csvSummary((await download('#export-csv')).body, 'ratio_bps'), '6000');
+  assert.equal(JSON.parse(j.body).dataOrigin, 'UNVERIFIED_USER_SUPPLIED');
+  const csv = (await download('#export-csv')).body;
+  assert.equal(csvSummary(csv, 'ratio_bps'), '6000');
+  const [h, ...r] = parseCsv(csv).rows;
+  const label = r.find((x) => x[h.indexOf('record_type')] === 'LABEL' && x[h.indexOf('metric')] === 'data_origin');
+  assert.equal(label[h.indexOf('text')], 'UNVERIFIED_USER_SUPPLIED');
 });
 
 await check('same file again is idempotent: delta 0, numerator stays 6', async () => {
@@ -207,6 +222,7 @@ await check('compare rule2 after reimport uses the reimported data (4 -> 5 uniqu
 await check('new run resets to the seeded fixture (5/10) and clears the delta', async () => {
   await page.click('#run');
   assert.equal(await card('Numerator (events)'), '5');
+  assert.match(await text('#origin-label'), /^BUNDLED SYNTHETIC DEMO - /, 'Run control restores the bundled fixture origin');
   assert.deepEqual(await rows('#delta'), []);
   assert.equal(await text('#reimport-status'), '');
   assert.equal(await text('#note-status'), '', 'no stale note status from the previous snapshot');

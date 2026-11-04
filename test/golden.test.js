@@ -150,6 +150,12 @@ test('#10 CSV import of the fixture yields the identical normalized dataset and 
   const r = importDatasetCsv(FIX.csv);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.deepEqual(r.dataset, FIX.dataset);
-  assert.equal(snap(r.dataset).snapshotId, snap(FIX.dataset).snapshotId);
+  // Same normalized data and calculations; the snapshot differs from the bundled run only by origin.
+  assert.equal(snap(r.dataset).snapshotId, snap(importOk(JSON.parse(FIX.json))).snapshotId);
+  assert.notEqual(snap(r.dataset).snapshotId, snap(FIX.dataset).snapshotId);
+  assert.equal(snap(r.dataset).dataOrigin, 'UNVERIFIED_USER_SUPPLIED');
+  for (const k of ['evaluation', 'contributions', 'exclusions', 'money', 'warnings', 'provenance']) {
+    assert.deepEqual(snap(r.dataset)[k], snap(FIX.dataset)[k], k);
+  }
   assert.equal(createSnapshot({ dataset: r.dataset, policySet: FIX.policySets.BASELINE_V1, merchantId: 'M1', period: '2026-10', session: M1 }).ok, true);
 });

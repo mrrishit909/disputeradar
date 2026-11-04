@@ -5,6 +5,7 @@ import {
   CHART_LABEL,
   CURRENCY,
   DATA_CLASSIFICATION,
+  DATA_ORIGIN,
   DENOMINATOR_DEFINITION,
   DISPUTE_STATUS,
   ENGINE_CONTRACT_VERSION,
@@ -15,6 +16,8 @@ import {
   FRAUD_STATUS,
   ID_PATTERN,
   IMPORT_LIMITS,
+  LEGACY_SCHEMA_VERSIONS,
+  LEGACY_V1_LIMITATIONS,
   LIMITATIONS,
   MAX_AMOUNT_CENTS,
   NOT_EVALUATED_REASON,
@@ -49,6 +52,7 @@ import {
   sha256Hex,
 } from './primitives.js';
 import { validateDataset } from './dataset.js';
+import { attestBundledSnapshot, isAttestedBundledSnapshot, labelsFor, originOfDataset } from './origin.js';
 
 const RULE_FIELDS = [
   'id', 'version', 'effectiveFrom', 'effectiveTo', 'region', 'windowDateField', 'denominatorDefinition',
@@ -191,6 +195,13 @@ function seal(content) {
   return deepFreeze({ snapshotId: sha256Hex(canonicalJson(content)), ...content });
 }
 
+/** Seals content and, only for a bundled-origin snapshot minted by this process, records the attestation. */
+function sealAttested(content) {
+  const snapshot = seal(content);
+  if (snapshot.dataOrigin === DATA_ORIGIN.BUNDLED_SYNTHETIC_DEMO) attestBundledSnapshot(snapshot.snapshotId);
+  return snapshot;
+}
+
 /**
  * Recomputes the unkeyed content fingerprint (accidental-corruption / edit detection), then
  * enforces the full snapshot schema and re-derives every count, ratio, contribution summary and
@@ -232,16 +243,67 @@ function verifiedSnapshot(input) {
     return { error: err(ERROR_CODE.INVALID_REPORT, 'Snapshot is not canonical JSON data.') };
   }
   const bad = verifySnapshot(copy);
-  return bad ? { error: bad } : { snapshot: deepFreeze(copy) };
+  if (bad) return { error: bad };
+  // A bundled-origin claim is self-asserted unless this process minted that exact snapshot.
+  if (copy.dataOrigin === DATA_ORIGIN.BUNDLED_SYNTHETIC_DEMO && !isAttestedBundledSnapshot(copy.snapshotId)) {
+    return {
+      error: err(ERROR_CODE.ORIGIN_NOT_ATTESTED,
+        'Snapshot claims the bundled synthetic-demo origin but was not created from the built-in fixture by this app instance.',
+        '/dataOrigin'),
+    };
+  }
+  return { snapshot: deepFreeze(copy) };
+}
+
+/**
+ * Reads a legacy v1 snapshot (hash and exact v1 envelope fields checked) and upconverts it to a v2
+ * snapshot whose origin is ALWAYS UNVERIFIED_USER_SUPPLIED: v1 labelled every snapshot SYNTHETIC
+ * unconditionally, so that claim carries no information and is discarded. The upconverted snapshot
+ * gets a new snapshotId and then passes the full v2 structure and derived-invariant verification.
+ * Internal (used by parseReportJson).
+ */
+export function upconvertV1Snapshot(v1) {
+  if (!isPlainObject(v1) || typeof v1.snapshotId !== 'string' || v1.schemaVersion !== LEGACY_SCHEMA_VERSIONS.SNAPSHOT_V1) {
+    return { error: err(ERROR_CODE.INVALID_REPORT, 'Not a DisputeRadar v1 snapshot.') };
+  }
+  let hash;
+  try {
+    hash = sha256Hex(canonicalJson(contentOf(v1)));
+  } catch {
+    return { error: err(ERROR_CODE.INVALID_REPORT, 'Snapshot is not canonical JSON data.') };
+  }
+  if (hash !== v1.snapshotId) {
+    return { error: err(ERROR_CODE.INTEGRITY_MISMATCH, 'Snapshot content does not match its snapshotId fingerprint.') };
+  }
+  try {
+    exactKeys(v1, SNAPSHOT_KEYS_V1, '');
+    need(v1.dataClassification === DATA_CLASSIFICATION, '/dataClassification', 'Unexpected v1 classification.');
+    same(v1.labels, { chart: CHART_LABEL, synthetic: SYNTHETIC_LABEL, policyDisclaimer: POLICY_DISCLAIMER }, '/labels', 'Required v1 labels are missing or altered.');
+    same(v1.limitations, LEGACY_V1_LIMITATIONS, '/limitations', 'Required v1 limitations are missing or altered.');
+  } catch (e) {
+    return { error: err(ERROR_CODE.INVALID_REPORT, `Snapshot structure is invalid: ${e.message}`, e.path) };
+  }
+  const content = {};
+  for (const key of SNAPSHOT_KEYS) {
+    if (key !== 'snapshotId' && key !== 'dataOrigin' && key !== 'labels' && key !== 'limitations' && key !== 'schemaVersion') {
+      content[key] = v1[key];
+    }
+  }
+  const origin = DATA_ORIGIN.UNVERIFIED_USER_SUPPLIED;
+  const v2 = seal({ ...content, schemaVersion: SCHEMA_VERSIONS.SNAPSHOT, dataOrigin: origin, labels: labelsFor(origin), limitations: LIMITATIONS });
+  const bad = verifySnapshot(v2);
+  return bad ? { error: bad } : { snapshot: v2, legacySnapshotId: v1.snapshotId };
 }
 
 // ---------- Strict snapshot structure (schema, enums, types, bounds, derived invariants) ----------
 const HEX64 = /^[0-9a-f]{64}$/;
 const SNAPSHOT_KEYS = [
-  'snapshotId', 'schemaVersion', 'engineContractVersion', 'dataClassification', 'labels', 'limitations', 'scenario',
+  'snapshotId', 'schemaVersion', 'engineContractVersion', 'dataOrigin', 'labels', 'limitations', 'scenario',
   'scope', 'requestedRuleId', 'provenance', 'parentSnapshotId', 'notes', 'rule', 'evaluation', 'numeratorWindow',
   'denominatorWindow', 'contributions', 'exclusions', 'money', 'warnings',
 ];
+const SNAPSHOT_KEYS_V1 = SNAPSHOT_KEYS.map((k) => (k === 'dataOrigin' ? 'dataClassification' : k));
+const ORIGINS = Object.values(DATA_ORIGIN);
 const EVENT_KEYS = ['eventType', 'eventId', 'transactionId', 'reportedDate', 'category', 'status', 'windowDate'];
 const PROVENANCE_METHOD = 'Deterministic pure evaluation; no clock, network, locale or randomness.';
 const COMPARISON_METHOD = 'Exact BigInt cross-multiplication numerator*10000 vs thresholdBps*denominator; displays are rounded half-up.';
@@ -415,8 +477,8 @@ function checkSnapshotStructure(s) {
   exactKeys(s, SNAPSHOT_KEYS, '');
   hexOk(s.snapshotId, '/snapshotId');
   need(s.engineContractVersion === ENGINE_CONTRACT_VERSION, '/engineContractVersion', 'Unsupported engine contract version.');
-  need(s.dataClassification === DATA_CLASSIFICATION, '/dataClassification', 'Only SYNTHETIC data is supported.');
-  same(s.labels, { chart: CHART_LABEL, synthetic: SYNTHETIC_LABEL, policyDisclaimer: POLICY_DISCLAIMER }, '/labels', 'Required labels are missing or altered.');
+  need(typeof s.dataOrigin === 'string' && ORIGINS.includes(s.dataOrigin), '/dataOrigin', 'Unknown data origin.');
+  same(s.labels, labelsFor(s.dataOrigin), '/labels', 'Required labels are missing, altered or inconsistent with the data origin.');
   same(s.limitations, LIMITATIONS, '/limitations', 'Required limitations are missing or altered.');
 
   exactKeys(s.scenario, ['policySetId', 'scenarioName'], '/scenario');
@@ -675,7 +737,10 @@ export function createSnapshot(options) {
   if (denied) return fail([denied]);
   const window = periodWindow(options.period);
   if (!window) return fail([err(ERROR_CODE.INVALID_PERIOD, 'period must be YYYY-MM.', '/period')]);
-  const ds = validateDataset(options.dataset);
+  // Single read: the object whose identity decides origin is the object that is validated/evaluated.
+  const datasetInput = options.dataset;
+  const origin = originOfDataset(datasetInput);
+  const ds = validateDataset(datasetInput);
   if (!ds.ok) return ds;
   const merchant = ds.dataset.merchants.find((m) => m.id === options.merchantId);
   if (!merchant) return fail([err(ERROR_CODE.UNKNOWN_MERCHANT, 'Merchant is not in the dataset.', '/merchantId')]);
@@ -700,8 +765,8 @@ export function createSnapshot(options) {
   const base = {
     schemaVersion: SCHEMA_VERSIONS.SNAPSHOT,
     engineContractVersion: ENGINE_CONTRACT_VERSION,
-    dataClassification: DATA_CLASSIFICATION,
-    labels: { chart: CHART_LABEL, synthetic: SYNTHETIC_LABEL, policyDisclaimer: POLICY_DISCLAIMER },
+    dataOrigin: origin,
+    labels: labelsFor(origin),
     limitations: LIMITATIONS,
     scenario: { policySetId: policySet.policySetId, scenarioName: policySet.scenarioName },
     scope: { merchantId: merchant.id, region: merchant.region, currency: merchant.currency, period: options.period, window },
@@ -716,9 +781,9 @@ export function createSnapshot(options) {
     notes: [],
   };
   if (!selected.rule) {
-    return { ok: true, snapshot: seal({ ...base, ...notEvaluatedBody(selected.reason) }) };
+    return { ok: true, snapshot: sealAttested({ ...base, ...notEvaluatedBody(selected.reason) }) };
   }
-  return { ok: true, snapshot: seal({ ...base, rule: selected.rule, ...evaluate(ds.dataset, merchant.id, selected.rule, window) }) };
+  return { ok: true, snapshot: sealAttested({ ...base, rule: selected.rule, ...evaluate(ds.dataset, merchant.id, selected.rule, window) }) };
 }
 
 function eventKey(e) {
@@ -765,6 +830,7 @@ export function diffSnapshots(fromInput, toInput) {
       numerator: { from: from.evaluation.numerator, to: to.evaluation.numerator, delta: delta(from.evaluation.numerator, to.evaluation.numerator) },
       denominator: { from: from.evaluation.denominator, to: to.evaluation.denominator, delta: delta(from.evaluation.denominator, to.evaluation.denominator) },
       state: { from: from.evaluation.state, to: to.evaluation.state },
+      dataOrigin: { from: from.dataOrigin, to: to.dataOrigin },
       ratioDifference: ratioDifference(from, to),
       addedEvents,
       removedEvents,
@@ -869,9 +935,11 @@ export function addRemediationNote(input, note, session) {
   }
   if (errors.length > 0) return fail(errors);
   const content = contentOf(snapshot);
+  // verifiedSnapshot already refused unattested bundled claims, so a bundled parent here was minted by
+  // this process; the annotated child (same data, same origin) inherits that attestation.
   return {
     ok: true,
-    snapshot: seal({
+    snapshot: sealAttested({
       ...content,
       parentSnapshotId: snapshot.snapshotId,
       notes: [...snapshot.notes, { author: note.author, recordedOn: note.recordedOn, text: note.text, inert: true }],

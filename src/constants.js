@@ -13,25 +13,72 @@ export function deepFreeze(value) {
 
 export const ENGINE_CONTRACT_VERSION = '1.0.0';
 
+// Snapshot/report contract v2: data ORIGIN (how data entered the app) replaces the v1 unconditional
+// "synthetic" claim. Input dataset schemas are unchanged (still v1).
 export const SCHEMA_VERSIONS = deepFreeze({
   DATASET_JSON: 'disputeradar.dataset.v1',
   DATASET_CSV: 'disputeradar.dataset-csv.v1',
   POLICY_SET: 'disputeradar.policy-set.v1',
-  SNAPSHOT: 'disputeradar.snapshot.v1',
-  REPORT: 'disputeradar.report.v1',
-  REPORT_CSV: 'disputeradar.report-csv.v1',
+  SNAPSHOT: 'disputeradar.snapshot.v2',
+  REPORT: 'disputeradar.report.v2',
+  REPORT_CSV: 'disputeradar.report-csv.v2',
 });
 
+/** Read-only legacy versions: v1 reports are parsed and upconverted, never produced. Internal. */
+export const LEGACY_SCHEMA_VERSIONS = deepFreeze({
+  SNAPSHOT_V1: 'disputeradar.snapshot.v1',
+  REPORT_V1: 'disputeradar.report.v1',
+});
+
+/**
+ * Value the INPUT dataset schema requires in `dataClassification` / `data_classification`.
+ * It is self-declared by whoever wrote the file and is NOT proof that the data is synthetic.
+ */
 export const DATA_CLASSIFICATION = 'SYNTHETIC';
-/** Literal label required on every chart, snapshot and export (spec). */
+/** Literal label required on every chart, snapshot and export (spec). Describes the RULE, not the data. */
 export const CHART_LABEL = 'Synthetic / illustrative rule';
+/**
+ * Legacy v1 data label. Only recognised when reading v1 reports; never applied to data by v2.
+ * v2 uses ORIGIN_LABELS, chosen by the app load path rather than by file content.
+ */
 export const SYNTHETIC_LABEL =
   'SYNTHETIC DEMO DATA - fictional merchants, transactions and events; illustrative rule only.';
 export const POLICY_DISCLAIMER =
   'Fictional illustrative policy. NOT Visa VAMP, NOT Mastercard, NOT acquirer or processor policy; ' +
   'no real network threshold, counting rule or compliance determination is represented.';
 
+/**
+ * Data origin. BUNDLED_SYNTHETIC_DEMO is earned only by passing the exact in-memory dataset object
+ * produced by generateDrSyn001() (the app's built-in fixture control) to createSnapshot. Everything
+ * else (JSON/CSV imports, pasted text, merges/reimports, parsed reports, byte-identical copies of
+ * the fixture, files declaring dataClassification SYNTHETIC) is UNVERIFIED_USER_SUPPLIED.
+ */
+export const DATA_ORIGIN = deepFreeze({
+  BUNDLED_SYNTHETIC_DEMO: 'BUNDLED_SYNTHETIC_DEMO',
+  UNVERIFIED_USER_SUPPLIED: 'UNVERIFIED_USER_SUPPLIED',
+});
+export const ORIGIN_NOTICE =
+  'Origin labels record only how data entered this app. They do not inspect content and cannot detect or prevent real, personal or sensitive data.';
+export const ORIGIN_LABELS = deepFreeze({
+  BUNDLED_SYNTHETIC_DEMO:
+    'BUNDLED SYNTHETIC DEMO - built-in fixture DR-SYN-001 loaded by the app fixture control; fictional merchants, transactions and events.',
+  UNVERIFIED_USER_SUPPLIED:
+    'UNVERIFIED USER-SUPPLIED DATA - imported, pasted, merged or otherwise not loaded by the built-in fixture control. ' +
+    'It may contain real or sensitive data; a SYNTHETIC classification declared inside a file is self-asserted and not verified.',
+});
+
 export const LIMITATIONS = deepFreeze([
+  'Fictional illustrative rules only; not a network, acquirer or processor monitoring determination.',
+  `Data origin is labelled by app load path only. ${ORIGIN_NOTICE} A self-declared SYNTHETIC classification in an input file is not proof.`,
+  'Results cover only imported records. Network-reported events absent from merchant exports are not represented; completeness is not verified.',
+  'Ratios are exact rationals; percent/bps decimals are display-only and rounded half-up.',
+  'No historical threshold inference, no FX conversion, no automatic refunds, dispute submissions or merchant notifications.',
+  'Refunds are operational context and never remove counted events.',
+  'Snapshot hashes are unkeyed integrity fingerprints, not signatures or proof of authorship.',
+]);
+
+/** Exact v1 limitations, used only to strictly recognise legacy v1 reports. Internal. */
+export const LEGACY_V1_LIMITATIONS = deepFreeze([
   'Synthetic data and fictional illustrative rules only; not a network, acquirer or processor monitoring determination.',
   'Results cover only imported records. Network-reported events absent from merchant exports are not represented; completeness is not verified.',
   'Ratios are exact rationals; percent/bps decimals are display-only and rounded half-up.',
@@ -153,6 +200,8 @@ export const ERROR_CODE = deepFreeze({
   INVALID_NOTE: 'INVALID_NOTE',
   INVALID_REPORT: 'INVALID_REPORT',
   INTEGRITY_MISMATCH: 'INTEGRITY_MISMATCH',
+  /** A snapshot claims the bundled synthetic-demo origin but this app instance did not mint it. */
+  ORIGIN_NOT_ATTESTED: 'ORIGIN_NOT_ATTESTED',
 });
 
 /** Field/column names that would indicate cardholder data. They are never accepted. */
@@ -250,6 +299,7 @@ export const FICTIONAL_RULES = deepFreeze({
 export const ENGINE_PUBLIC_API = deepFreeze([
   'CHART_LABEL',
   'DATA_CLASSIFICATION',
+  'DATA_ORIGIN',
   'ENGINE_CONTRACT_VERSION',
   'ERROR_CODE',
   'EVALUATION_STATE',
@@ -259,6 +309,8 @@ export const ENGINE_PUBLIC_API = deepFreeze([
   'IMPORT_LIMITS',
   'LIMITATIONS',
   'NOT_EVALUATED_REASON',
+  'ORIGIN_LABELS',
+  'ORIGIN_NOTICE',
   'POLICY_DISCLAIMER',
   'SCHEMA_VERSIONS',
   'SYNTHETIC_LABEL',

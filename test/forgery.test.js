@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
-  CHART_LABEL, POLICY_DISCLAIMER, SYNTHETIC_LABEL, addRemediationNote, diffSnapshots, parseReportJson, queryContributions,
-  serializeReportCsv, serializeReportJson,
+  CHART_LABEL, ORIGIN_LABELS, ORIGIN_NOTICE, POLICY_DISCLAIMER, addRemediationNote, diffSnapshots, parseReportJson,
+  queryContributions, serializeReportCsv, serializeReportJson,
 } from '../src/index.js';
-import { FIX, M1, codes, snap } from './helpers.js';
+import { FIX, M1, codes, importOk, rawFixture, snap } from './helpers.js';
 
 function canon(v) {
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
@@ -30,10 +30,11 @@ function forge(base, mutate) {
   return reseal(copy);
 }
 
+/** A well-formed v2 envelope around the (possibly forged) snapshot, so only the snapshot is under test. */
 function reportText(snapshot) {
   return JSON.stringify({
-    schemaVersion: 'disputeradar.report.v1', dataClassification: 'SYNTHETIC', chartLabel: CHART_LABEL,
-    syntheticLabel: SYNTHETIC_LABEL, policyDisclaimer: POLICY_DISCLAIMER, snapshot,
+    schemaVersion: 'disputeradar.report.v2', dataOrigin: snapshot?.dataOrigin, dataOriginLabel: ORIGIN_LABELS[snapshot?.dataOrigin],
+    originNotice: ORIGIN_NOTICE, chartLabel: CHART_LABEL, policyDisclaimer: POLICY_DISCLAIMER, snapshot,
   });
 }
 
@@ -101,7 +102,12 @@ const FORGERIES = {
   'labels altered': (s) => { s.labels.chart = 'Visa VAMP determination'; },
   'limitations dropped': (s) => { s.limitations = []; },
   'engine contract version': (s) => { s.engineContractVersion = '9.9.9'; },
-  'dataClassification': (s) => { s.dataClassification = 'PRODUCTION'; },
+  'legacy dataClassification re-added': (s) => { s.dataClassification = 'SYNTHETIC'; },
+  'dataOrigin unknown enum': (s) => { s.dataOrigin = 'SYNTHETIC'; },
+  'dataOrigin missing': (s) => { delete s.dataOrigin; },
+  'dataOrigin relabelled without matching labels': (s) => { s.dataOrigin = 'UNVERIFIED_USER_SUPPLIED'; },
+  'origin label text altered': (s) => { s.labels.dataOrigin = 'Verified synthetic data'; },
+  'origin notice dropped': (s) => { delete s.labels.originNotice; },
   'warnings removed': (s) => { s.warnings = []; },
   'refund total forged': (s) => { s.money.refundTotalCents += 1; },
   'settled gross display forged': (s) => { s.money.settledGrossUsd = '0.00'; },
@@ -185,7 +191,11 @@ test('genuine evaluated, annotated, scenario and NOT_EVALUATED snapshots still v
 
 test('DISCLOSED LIMITATION: a self-consistent edit with a recomputed hash is accepted (fingerprint is not authenticity)', () => {
   // Only fields that are free text and not derivable can be edited this way; derived counts cannot.
-  const edited = forge(GENUINE, (s) => { s.scenario.scenarioName = 'Edited by a third party'; });
-  assert.notEqual(edited.snapshotId, GENUINE.snapshotId);
+  // Such an edit can only ever carry the UNVERIFIED origin: a bundled claim needs in-process attestation.
+  const unverified = snap(importOk(rawFixture()));
+  const edited = forge(unverified, (s) => { s.scenario.scenarioName = 'Edited by a third party'; });
+  assert.notEqual(edited.snapshotId, unverified.snapshotId);
   assert.equal(queryContributions(edited, {}).ok, true);
+  const editedBundled = forge(GENUINE, (s) => { s.scenario.scenarioName = 'Edited by a third party'; });
+  assert.deepEqual(codes(queryContributions(editedBundled, {})), ['ORIGIN_NOT_ATTESTED']);
 });

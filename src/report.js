@@ -3,15 +3,19 @@ import {
   CHART_LABEL,
   CSV_EXPORT_COLUMNS,
   DATA_CLASSIFICATION,
+  DATA_ORIGIN,
   ERROR_CODE,
   IMPORT_LIMITS,
+  LEGACY_SCHEMA_VERSIONS,
+  ORIGIN_LABELS,
+  ORIGIN_NOTICE,
   POLICY_DISCLAIMER,
   SCHEMA_VERSIONS,
   SYNTHETIC_LABEL,
   deepFreeze,
 } from './constants.js';
 import { canonicalJson, csvRow, err, escapeFormula, fail, formatCents, isPlainObject } from './primitives.js';
-import { checkSession, verifiedSnapshot, verifySnapshot } from './engine.js';
+import { checkSession, upconvertV1Snapshot, verifiedSnapshot, verifySnapshot } from './engine.js';
 
 /** Returns {blocked} or the verified plain-data copy; exporters read only that copy. */
 function guard(input, session) {
@@ -27,22 +31,51 @@ function htmlSafeJson(text) {
   return text.replace(HTML_UNSAFE, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-/** Exports exactly the scoped snapshot (same snapshotId) as canonical, HTML-safe JSON. */
+/**
+ * Exports exactly the scoped snapshot (same snapshotId) as canonical, HTML-safe JSON (report v2).
+ * The envelope origin fields are copied from the verified snapshot, whose bundled origin (if any)
+ * was attested by verifiedSnapshot; they are never derived from data content.
+ */
 export function serializeReportJson(input, session) {
   const { blocked, snapshot } = guard(input, session);
   if (blocked) return blocked;
   const doc = {
     schemaVersion: SCHEMA_VERSIONS.REPORT,
-    dataClassification: DATA_CLASSIFICATION,
+    dataOrigin: snapshot.dataOrigin,
+    dataOriginLabel: ORIGIN_LABELS[snapshot.dataOrigin],
+    originNotice: ORIGIN_NOTICE,
     chartLabel: CHART_LABEL,
-    syntheticLabel: SYNTHETIC_LABEL,
     policyDisclaimer: POLICY_DISCLAIMER,
     snapshot,
   };
   return { ok: true, text: `${htmlSafeJson(canonicalJson(doc))}\n` };
 }
 
-/** Parses an exported JSON report and verifies the snapshot fingerprint (tamper detection). */
+const REPORT_V2_KEYS = ['chartLabel', 'dataOrigin', 'dataOriginLabel', 'originNotice', 'policyDisclaimer', 'schemaVersion', 'snapshot'];
+const REPORT_V1_KEYS = ['chartLabel', 'dataClassification', 'policyDisclaimer', 'schemaVersion', 'snapshot', 'syntheticLabel'];
+const notReport = () => fail([err(ERROR_CODE.INVALID_REPORT, 'Not a DisputeRadar report document.')]);
+
+/** Origin of anything read back from a report file: always unverified, whatever the file asserts. */
+function parsedOrigin(reportSchemaVersion, assertedDataOrigin, legacySnapshotId) {
+  return deepFreeze({
+    effective: DATA_ORIGIN.UNVERIFIED_USER_SUPPLIED,
+    label: ORIGIN_LABELS.UNVERIFIED_USER_SUPPLIED,
+    notice: ORIGIN_NOTICE,
+    reportSchemaVersion,
+    assertedDataOrigin,
+    legacySnapshotId,
+    note: 'A parsed report is a file supplied to the app. Its origin assertion (and any v1 SYNTHETIC claim) is recorded but never trusted.',
+  });
+}
+
+/**
+ * Parses an exported JSON report and verifies the snapshot fingerprint and structure.
+ * - report v2: exact envelope; envelope origin must match the snapshot. Returns the snapshot as-is.
+ * - report v1 (legacy): exact v1 envelope, v1 hash verified, then upconverted to a v2 snapshot with
+ *   origin UNVERIFIED_USER_SUPPLIED (new snapshotId); the v1 unconditional SYNTHETIC fields are discarded.
+ * In both cases `origin.effective` is UNVERIFIED_USER_SUPPLIED. A returned snapshot that asserts the
+ * bundled origin is still refused by every other API unless this app instance minted it.
+ */
 export function parseReportJson(text) {
   if (typeof text !== 'string') return fail([err(ERROR_CODE.INVALID_TYPE, 'Report must be a string.')]);
   if (text.length > IMPORT_LIMITS.MAX_REPORT_BYTES) return fail([err(ERROR_CODE.INPUT_TOO_LARGE, 'Report is too large.')]);
@@ -52,15 +85,25 @@ export function parseReportJson(text) {
   } catch {
     return fail([err(ERROR_CODE.MALFORMED_JSON, 'Report is not well-formed JSON.')]);
   }
-  const keys = ['chartLabel', 'dataClassification', 'policyDisclaimer', 'schemaVersion', 'snapshot', 'syntheticLabel'];
-  if (!isPlainObject(doc) || Object.keys(doc).sort().join() !== keys.join()
-    || doc.schemaVersion !== SCHEMA_VERSIONS.REPORT || doc.dataClassification !== DATA_CLASSIFICATION
-    || doc.chartLabel !== CHART_LABEL || doc.syntheticLabel !== SYNTHETIC_LABEL || doc.policyDisclaimer !== POLICY_DISCLAIMER) {
-    return fail([err(ERROR_CODE.INVALID_REPORT, 'Not a DisputeRadar synthetic report document.')]);
+  if (!isPlainObject(doc)) return notReport();
+  const keys = Object.keys(doc).sort().join();
+  if (doc.schemaVersion === SCHEMA_VERSIONS.REPORT) {
+    if (keys !== REPORT_V2_KEYS.join() || typeof doc.dataOrigin !== 'string' || !Object.values(DATA_ORIGIN).includes(doc.dataOrigin)
+      || doc.dataOriginLabel !== ORIGIN_LABELS[doc.dataOrigin] || doc.originNotice !== ORIGIN_NOTICE
+      || doc.chartLabel !== CHART_LABEL || doc.policyDisclaimer !== POLICY_DISCLAIMER) return notReport();
+    const bad = verifySnapshot(doc.snapshot);
+    if (bad) return fail([bad]);
+    if (doc.snapshot.dataOrigin !== doc.dataOrigin) return notReport();
+    return { ok: true, snapshot: deepFreeze(doc.snapshot), origin: parsedOrigin(doc.schemaVersion, doc.dataOrigin, null) };
   }
-  const bad = verifySnapshot(doc.snapshot);
-  if (bad) return fail([bad]);
-  return { ok: true, snapshot: deepFreeze(doc.snapshot) };
+  if (doc.schemaVersion === LEGACY_SCHEMA_VERSIONS.REPORT_V1) {
+    if (keys !== REPORT_V1_KEYS.join() || doc.dataClassification !== DATA_CLASSIFICATION || doc.chartLabel !== CHART_LABEL
+      || doc.syntheticLabel !== SYNTHETIC_LABEL || doc.policyDisclaimer !== POLICY_DISCLAIMER) return notReport();
+    const up = upconvertV1Snapshot(doc.snapshot);
+    if (up.error) return fail([up.error]);
+    return { ok: true, snapshot: up.snapshot, origin: parsedOrigin(doc.schemaVersion, null, up.legacySnapshotId) };
+  }
+  return notReport();
 }
 
 /**
@@ -89,8 +132,11 @@ export function serializeReportCsv(input, session) {
       return escapeFormula(String(v));
     }));
   };
+  add('LABEL', { metric: 'report_schema_version', text: SCHEMA_VERSIONS.REPORT_CSV });
+  add('LABEL', { metric: 'data_origin', text: s.dataOrigin });
+  add('LABEL', { metric: 'data_origin_label', text: ORIGIN_LABELS[s.dataOrigin] });
+  add('LABEL', { metric: 'origin_notice', text: ORIGIN_NOTICE });
   add('LABEL', { metric: 'chart_label', text: CHART_LABEL });
-  add('LABEL', { metric: 'synthetic_label', text: SYNTHETIC_LABEL });
   add('LABEL', { metric: 'policy_disclaimer', text: POLICY_DISCLAIMER });
   add('SUMMARY', { metric: 'scenario', text: `${s.scenario.policySetId}: ${s.scenario.scenarioName}` });
   add('SUMMARY', { metric: 'evaluation_state', text: ev.state, reason: ev.notEvaluatedReason });

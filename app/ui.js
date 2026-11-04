@@ -1,4 +1,21 @@
 // Pure UI helpers for the DisputeRadar workbench. No DOM, no engine imports; everything is escaped text.
+
+/** Shown before any snapshot exists (no data has been loaded, so no origin is claimed). */
+export const ORIGIN_IDLE_TEXT = 'No data loaded yet. Data origin is shown here once a snapshot exists.';
+
+/**
+ * Origin banner text for the shown snapshot, read only from the engine snapshot's dataOrigin/labels
+ * (set by load path, never by content). Anything but the attested bundled origin reads as unverified.
+ */
+export function originBanner(snapshot) {
+  const bundled = snapshot.dataOrigin === 'BUNDLED_SYNTHETIC_DEMO';
+  return {
+    kind: bundled ? 'BUNDLED_SYNTHETIC_DEMO' : 'UNVERIFIED_USER_SUPPLIED',
+    label: snapshot.labels.dataOrigin,
+    notice: snapshot.labels.originNotice,
+  };
+}
+
 export const SCENARIOS = Object.freeze([
   { id: 'M1_BASELINE', label: 'DR-SYN-001 merchant M1, baseline v1 (event count)', merchantId: 'M1', policySet: 'BASELINE_V1', sessionMerchantId: 'M1' },
   { id: 'M1_V2', label: 'DR-SYN-001 merchant M1, scenario v2 (unique transactions)', merchantId: 'M1', policySet: 'SCENARIO_V2_UNIQUE_TRANSACTION', sessionMerchantId: 'M1' },
@@ -153,6 +170,7 @@ export function deltaRows(diff, from, to, merge) {
     `Ratio ${bpsOf(from)} → ${bpsOf(to)}; exact difference ${rd ? `${rd.differenceFraction} (${signedBps(rd.bps)} bps)` : 'undefined (a zero denominator on either side)'}; state ${diff.state.from} → ${diff.state.to}.`,
     ...(diff.explanation.length ? diff.explanation : ['No counted event or scoped data changed: every re-imported record was already present (idempotent no-op).']),
     `Merge: ${merge.added.length} new record(s): ${list(merge.added)}; ${merge.unchanged.length} identical record(s) ignored as idempotent re-imports.`,
+    `Data origin ${diff.dataOrigin.from} → ${diff.dataOrigin.to}: merged or imported data is always UNVERIFIED USER-SUPPLIED, even when identical to the built-in fixture or declared SYNTHETIC.`,
     ...(from.notes.length ? [`${from.notes.length} remediation note(s) stay on the baseline snapshot; the new snapshot starts with none.`] : []),
   ];
 }

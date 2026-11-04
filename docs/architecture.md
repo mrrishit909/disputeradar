@@ -36,8 +36,8 @@ plain data. The checks run in this order:
    `INVALID_REPORT` with a JSON-pointer-style path. Messages never echo raw values.
    - Exact key sets at every object level. Unknown, missing and sensitive-looking keys are
      rejected, including an own `__proto__` key from JSON.
-   - Constants must be exact: `engineContractVersion`, `dataClassification`, labels, limitations
-     and the provenance method. Fingerprints must be 64-character lowercase hex.
+   - Constants must be exact: `engineContractVersion`, `dataOrigin` (enum), the labels for that
+     origin, limitations and the provenance method. Fingerprints must be 64-character lowercase hex.
    - Scope: identifier and region grammar, `USD` only, a valid `YYYY-MM` period, and `window`
      equal to that calendar month.
    - Notes: bounded list. Each note has an author id, a valid date, bounded non-blank inert text

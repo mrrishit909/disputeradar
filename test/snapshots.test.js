@@ -78,9 +78,12 @@ test('#7 late event needing an unimported historical transaction is rejected, no
 test('#9 tenant isolation: M1 snapshot/exports never contain M2 data; wrong session denied', () => {
   const ds = multiTenant();
   const s = snap(ds);
-  // Strongest isolation check: M1's report is byte-identical whatever M2's data is.
-  assert.equal(s.snapshotId, snap(FIX.dataset).snapshotId);
-  assert.equal(serializeReportCsv(s, M1).text, serializeReportCsv(snap(FIX.dataset), M1).text);
+  // Strongest isolation check: M1's report is byte-identical whatever M2's data is. Both sides are
+  // imported (UNVERIFIED_USER_SUPPLIED) data; the bundled run differs only by its origin.
+  const importedFixture = snap(importDatasetJson(FIX.json).dataset);
+  assert.equal(s.snapshotId, importedFixture.snapshotId);
+  assert.equal(serializeReportCsv(s, M1).text, serializeReportCsv(importedFixture, M1).text);
+  assert.deepEqual(s.evaluation, snap(FIX.dataset).evaluation);
   assert.equal(s.evaluation.numerator, 5);
   assert.equal(s.evaluation.denominator, 10);
   assert.equal(s.money.settledGrossCents, 100000);
@@ -181,7 +184,8 @@ test('#10 determinism: row order, reimport, generator and JSON/CSV round-trips',
   assert.deepEqual(shuffled.dataset, original.dataset);
   assert.equal(shuffled.provenance.datasetSha256, original.provenance.datasetSha256);
   assert.notEqual(shuffled.provenance.inputSha256, original.provenance.inputSha256);
-  assert.equal(snap(shuffled.dataset).snapshotId, snap(FIX.dataset).snapshotId);
+  assert.equal(snap(shuffled.dataset).snapshotId, snap(original.dataset).snapshotId);
+  assert.deepEqual(snap(shuffled.dataset).evaluation, snap(FIX.dataset).evaluation);
   assert.equal(generateDrSyn001().json, FIX.json);
   assert.equal(generateDrSyn001().csv, FIX.csv);
   assert.equal(datasetToJson(original.dataset), FIX.json);

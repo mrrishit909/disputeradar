@@ -6,6 +6,7 @@ import {
   CSV_RECORD_TYPES,
   CURRENCY,
   DATA_CLASSIFICATION,
+  DATA_ORIGIN,
   DISPUTE_STATUS,
   ERROR_CODE,
   FRAUD_STATUS,
@@ -276,12 +277,15 @@ function provenance(format, bytes, dataset) {
   for (const c of COLLECTIONS) rows += dataset[c].length;
   return deepFreeze({
     format,
-    dataClassification: DATA_CLASSIFICATION,
+    // Every import is user-supplied. The file's own classification is reported as a claim only.
+    dataOrigin: DATA_ORIGIN.UNVERIFIED_USER_SUPPLIED,
+    declaredDataClassification: DATA_CLASSIFICATION,
     inputSha256: sha256Hex(bytes),
     inputBytes: bytes.byteLength,
     datasetSha256: datasetSha256(dataset),
     recordCount: rows,
-    note: 'Input hash identifies the exact upload; datasetSha256 identifies the normalized content (row-order independent).',
+    note: 'Input hash identifies the exact upload; datasetSha256 identifies the normalized content (row-order independent). '
+      + 'declaredDataClassification is self-asserted by the file and is not verified.',
   });
 }
 

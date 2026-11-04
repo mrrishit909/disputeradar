@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data:">
-<title>DisputeRadar synthetic workbench</title>
+<title>DisputeRadar workbench (fictional illustrative rules)</title>
 <style>
   :root { color-scheme: light; --ink: #1b1b1f; --muted: #5b5f6b; --line: #d9dbe3; --accent: #0b5cad; --paper: #fff; }
   * { box-sizing: border-box; }
@@ -12,6 +12,7 @@
   main { padding: 16px; max-width: 960px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   .label { display: inline-block; background: #fff3cd; border: 1px solid #e0b300; padding: 4px 8px; border-radius: 4px; font-weight: 600; margin: 8px 0 16px; overflow-wrap: anywhere; }
+  .label[data-origin="UNVERIFIED_USER_SUPPLIED"] { background: #fde2e1; border-color: #b3261e; }
   .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 16px; }
   .controls label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; min-width: 0; }
   select, button, input, textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; max-width: 100%; min-width: 0; }
@@ -36,8 +37,9 @@
 </head>
 <body>
 <main>
-  <h1>DisputeRadar synthetic workbench</h1>
-  <p class="label" id="synthetic-label">Synthetic / illustrative rule</p>
+  <h1>DisputeRadar workbench (fictional illustrative rules)</h1>
+  <p class="label" id="origin-label" role="status" aria-live="polite">No data loaded yet. Data origin is shown here once a snapshot exists.</p>
+  <p class="muted" id="origin-notice">Origin labels record only how data entered this app. They do not inspect content and cannot detect or prevent real, personal or sensitive data.</p>
   <section aria-labelledby="run-h">
     <h2 id="run-h" class="sr">Run</h2>
     <div class="controls">
@@ -76,14 +78,14 @@
   </section>
   <section aria-labelledby="reimport-h">
     <h2 id="reimport-h">Late-event reimport</h2>
-    <p class="muted">Paste a synthetic JSON or CSV addition for the current merchant. It is validated by the engine, merged (identical records are no-ops, conflicting ids are rejected), and evaluated into a new immutable snapshot for the same merchant, month and rule. The delta below comes from comparing the two snapshots. Records for any other merchant are refused. A rejected import changes nothing.</p>
+    <p class="muted">Paste a JSON or CSV addition for the current merchant. It is validated by the engine, merged (identical records are no-ops, conflicting ids are rejected), and evaluated into a new immutable snapshot for the same merchant, month and rule. The delta below comes from comparing the two snapshots. Records for any other merchant are refused. A rejected import changes nothing. Any accepted import makes the snapshot UNVERIFIED USER-SUPPLIED, even if the file says SYNTHETIC or matches the built-in fixture: the app cannot tell whether pasted data is real or sensitive, so do not paste real cardholder, personal or confidential data.</p>
     <div class="controls">
       <button id="ex-valid" type="button" disabled>Load late event D5 example</button>
       <button id="ex-conflict" type="button" disabled>Load conflicting D1 example</button>
       <button id="ex-other" type="button" disabled>Load other-merchant example</button>
     </div>
     <form id="reimport-form" class="controls">
-      <label>Synthetic dataset addition (JSON or CSV) <textarea id="reimport-text" rows="4" spellcheck="false" required disabled></textarea></label>
+      <label>Dataset addition (JSON or CSV; origin will be unverified) <textarea id="reimport-text" rows="4" spellcheck="false" required disabled></textarea></label>
       <button id="reimport-run" type="submit" disabled>Reimport and diff</button>
     </form>
     <p id="reimport-status" role="status"></p>

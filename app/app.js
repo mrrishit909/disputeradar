@@ -1,13 +1,15 @@
-// DisputeRadar synthetic workbench. Seeded fixture only; all numbers come from the engine snapshot.
+// DisputeRadar workbench. All numbers come from the engine snapshot. Data origin is decided by the
+// engine from the load path: only the Run control (built-in fixture object) yields the bundled
+// synthetic-demo origin; any reimported/pasted/merged data is UNVERIFIED USER-SUPPLIED.
 import {
   generateDrSyn001, createSnapshot, compareScenarios, queryContributions, addRemediationNote,
-  serializeReportJson, serializeReportCsv, SYNTHETIC_LABEL, IMPORT_LIMITS,
+  serializeReportJson, serializeReportCsv, IMPORT_LIMITS, ORIGIN_NOTICE,
   importDatasetJson, importDatasetCsv, mergeDatasets, diffSnapshots,
 } from '../src/index.js';
 import {
   SCENARIOS, scenarioById, esc, summaryCards, findingLabel, findingDetail, resultState, errorSummary, looksLikePan,
   exportFilename, filterOptions, buildQuery, explanationRows, comparisonRows,
-  REIMPORT_EXAMPLES, detectFormat, scopeViolations, deltaRows,
+  REIMPORT_EXAMPLES, detectFormat, scopeViolations, deltaRows, originBanner, ORIGIN_IDLE_TEXT,
 } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -39,9 +41,14 @@ function render() {
   for (const id of ['findings', 'why', 'cmp', 'notes']) $(id).replaceChildren();
   setText('shown', '');
   closeDetail();
+  $('origin-label').dataset.origin = '';
+  if (state === 'empty' || state === 'error') setText('origin-label', ORIGIN_IDLE_TEXT);
   if (state === 'empty') { setText('status', 'No run yet. Choose a seeded fixture scenario and press Run.'); return; }
   if (state === 'error') { setText('status', `Rejected: ${errorSummary(result).join(' | ')}`); return; }
   const snap = result.snapshot;
+  const origin = originBanner(snap);
+  setText('origin-label', origin.label);
+  $('origin-label').dataset.origin = origin.kind;
   for (const c of summaryCards(snap)) {
     const li = document.createElement('li');
     li.innerHTML = `<span class="k">${esc(c.label)}</span><strong>${esc(c.value)}</strong>`;
@@ -140,7 +147,8 @@ function addNote(ev) {
 }
 
 /**
- * Late-event reimport: validate the pasted synthetic file with the engine importer, refuse any record
+ * Late-event reimport: validate the pasted file with the engine importer (its self-declared SYNTHETIC
+ * classification is not proof; the result is UNVERIFIED USER-SUPPLIED), refuse any record
  * outside the session merchant, merge (identical ids are idempotent, conflicting ids rejected), build a
  * NEW snapshot for the same merchant/period/policy set, and explain the delta with diffSnapshots.
  * Any rejection leaves the current snapshot, its data and the last delta exactly as they were.
@@ -170,7 +178,7 @@ function reimport(ev) {
   result = next;
   render();
   fillList('delta', deltaRows(d.diff, prior, s, merged.merge));
-  return setText('reimport-status', `Reimported ${format} (${imported.provenance.recordCount} record(s), input sha256 ${imported.provenance.inputSha256.slice(0, 12)}). New snapshot ${s.snapshotId.slice(0, 12)} is now shown and exported.`);
+  return setText('reimport-status', `Reimported ${format} (${imported.provenance.recordCount} record(s), input sha256 ${imported.provenance.inputSha256.slice(0, 12)}). New snapshot ${s.snapshotId.slice(0, 12)} is now shown and exported. Data origin: ${s.dataOrigin}.`);
 }
 
 function download(ext) {
@@ -185,7 +193,7 @@ function download(ext) {
 }
 
 for (const s of SCENARIOS) $('fixture-select').insertAdjacentHTML('beforeend', `<option value="${esc(s.id)}">${esc(s.label)}</option>`);
-setText('synthetic-label', SYNTHETIC_LABEL);
+setText('origin-notice', ORIGIN_NOTICE);
 $('note-text').maxLength = IMPORT_LIMITS.MAX_NOTE_CHARS;
 $('run').addEventListener('click', run);
 for (const id of ['f-category', 'f-type', 'f-month', 'f-sort']) $(id).addEventListener('change', renderFindings);

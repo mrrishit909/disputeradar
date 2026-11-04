@@ -3,6 +3,7 @@
 import { CSV_IMPORT_COLUMNS, DATA_CLASSIFICATION, FICTIONAL_RULES, FIXTURE_ID, SCHEMA_VERSIONS, deepFreeze } from './constants.js';
 import { datasetToCsv, datasetToJson, validateDataset } from './dataset.js';
 import { validatePolicySet } from './engine.js';
+import { markBundledFixtureDataset } from './origin.js';
 
 function literalRecords() {
   const transactions = [];
@@ -45,10 +46,13 @@ function policySet(policySetId, scenarioName, rule) {
 /**
  * Generates DR-SYN-001: the literal dataset (validated, frozen), its canonical JSON and CSV import
  * files, and the baseline/scenario fictional policy sets. Output is byte-identical on every call.
+ * Only the returned `dataset` OBJECT earns the bundled synthetic-demo origin in createSnapshot; the
+ * `json`/`csv` strings, once imported, are user-supplied data like any other file.
  */
 export function generateDrSyn001() {
   const v = validateDataset(literalRecords());
   if (!v.ok) throw new Error('fixture dataset invalid');
+  markBundledFixtureDataset(v.dataset);
   return deepFreeze({
     fixtureId: FIXTURE_ID,
     dataClassification: DATA_CLASSIFICATION,
