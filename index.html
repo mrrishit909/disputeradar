@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+<meta name="description" content="DisputeRadar: a synthetic demo that shows how two fictional event-counting rules turn the same ten settled sales into different ratios. Fictional data, illustrative threshold, no network connection.">
+<title>DisputeRadar: one month, two fictional counting rules (synthetic demo)</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app/landing.css">
+</head>
+<body>
+<a class="skip" href="#instrument">Skip to the instrument</a>
+
+<header class="masthead">
+  <p class="wordmark">Dispute<span>Radar</span></p>
+  <nav aria-label="Page">
+    <ul>
+      <li><a href="#instrument">Delta</a></li>
+      <li><a href="#ledger">Ledger</a></li>
+      <li><a href="#limits">Limits</a></li>
+      <li><a class="nav-cta" href="app/">Workbench</a></li>
+    </ul>
+  </nav>
+</header>
+
+<p class="banner" role="note"><strong>Synthetic / illustrative rule.</strong> Every merchant, transaction and event on this page is fictional (fixture DR-SYN-001). DEMO-EVENT-COUNT is a made-up rule and is <strong>not</strong> Visa VAMP, Mastercard, acquirer or processor policy. No network connection.</p>
+
+<main>
+  <section class="lede" aria-labelledby="lede-h">
+    <p class="kicker">Merchant signal desk &middot; fictional merchant M1 &middot; October 2026</p>
+    <h1 id="lede-h">Same records. Ten settled sales. Two counting rules. <em>A 1000&nbsp;bps gap.</em></h1>
+    <p class="dek">DisputeRadar shows how the counting rule changes the ratio a merchant team reviews. Under fictional rule&nbsp;1 every dispute and fraud event reported in October counts; under fictional rule&nbsp;2 each transaction with such an event counts once. Same records, same month, different number. A person reviews the result. The tool makes no determination.</p>
+    <p class="cta-row"><a class="cta" href="app/">Open the workbench <span aria-hidden="true">&rarr;</span></a> <span class="cta-note">Runs the same fixture in your browser. Nothing is sent anywhere.</span></p>
+  </section>
+
+  <article class="sheet" id="instrument" aria-labelledby="sheet-h">
+    <header class="sheet-head">
+      <p class="sheet-tag">Exhibit 1 &middot; Synthetic / illustrative rule</p>
+      <h2 id="sheet-h">Scenario delta: rule&nbsp;1 versus rule&nbsp;2</h2>
+      <p class="sheet-sub">Merchant M1, period 2026-10. Ratio = counted events &divide; settled transactions in the month, compared with an illustrative 2500&nbsp;bps line.</p>
+    </header>
+
+    <figure class="scale" aria-labelledby="scale-cap">
+      <div class="track" aria-hidden="true">
+        <span class="grid g0"><i>0</i></span><span class="grid g1"><i>1000</i></span><span class="grid g2"><i>2000</i></span><span class="grid g3"><i>3000</i></span><span class="grid g4"><i>4000</i></span><span class="grid g5"><i>5000</i></span><span class="grid g6"><i>6000</i></span>
+        <span class="line-thresh"><span>illustrative 2500</span></span>
+        <span class="bar bar-r1"><span>Rule 1 &middot; 5000</span></span>
+        <span class="bar bar-r2"><span>Rule 2 &middot; 4000</span></span>
+        <span class="gap"><span>&minus;1000</span></span>
+      </div>
+      <dl class="readout">
+        <div class="r1"><dt>Rule 1 &middot; event count</dt><dd><b>5000</b> bps</dd><dd class="frac">5 events &divide; 10 settled = 50.00%</dd></div>
+        <div class="r2"><dt>Rule 2 &middot; unique transactions</dt><dd><b>4000</b> bps</dd><dd class="frac">4 transactions &divide; 10 settled = 40.00%</dd></div>
+        <div class="dl"><dt>Difference, rule 2 minus rule 1</dt><dd><b>&minus;1000</b> bps</dd><dd class="frac">F1 and D1 share T1; rule 2 counts T1 once</dd></div>
+        <div class="th"><dt>Illustrative line</dt><dd><b>2500</b> bps</dd><dd class="frac">Fictional. Both ratios sit above it.</dd></div>
+      </dl>
+      <figcaption id="scale-cap">Scale in basis points, 0 to 6000. Policy sets DEMO-BASELINE-V1 (rule 1) and DEMO-SCENARIO-V2 (rule 2). Both are fictional; the 2500&nbsp;bps line is illustrative and is not a real network threshold. Being above it is a demo label for human review, not a prediction, rating or compliance finding.</figcaption>
+    </figure>
+
+    <div class="split">
+      <section class="ledger" id="ledger" aria-labelledby="ledger-h">
+        <h3 id="ledger-h"><span class="num">A</span> Numerator ledger</h3>
+        <div class="table-wrap" role="region" aria-labelledby="ledger-h" tabindex="0">
+          <table>
+            <caption>Fictional dispute (D) and fraud (F) events for M1, ordered by reported date, and how each rule counts them.</caption>
+            <thead>
+              <tr><th scope="col">Event</th><th scope="col">Sale</th><th scope="col">Reported &middot; status</th><th scope="col">Rule 1</th><th scope="col">Rule 2</th></tr>
+            </thead>
+            <tbody>
+              <tr class="row-t0"><th scope="row">D3 <small>dispute</small></th><td>T0</td><td>2026-10-01 <small>WITHDRAWN</small></td><td class="yes">counts</td><td class="yes">T0 counts</td></tr>
+              <tr class="row-t1"><th scope="row">D1 <small>dispute</small></th><td>T1</td><td>2026-10-03 <small>OPEN</small></td><td class="yes">counts</td><td class="yes">T1 counts</td></tr>
+              <tr class="row-t2"><th scope="row">D2 <small>dispute</small></th><td>T2</td><td>2026-10-10 <small>WON</small></td><td class="yes">counts</td><td class="yes">T2 counts</td></tr>
+              <tr class="row-t1 dup"><th scope="row">F1 <small>fraud</small></th><td>T1</td><td>2026-10-15 <small>REPORTED</small></td><td class="yes">counts</td><td class="no">T1 already counted</td></tr>
+              <tr class="row-t3"><th scope="row">F2 <small>fraud</small></th><td>T3</td><td>2026-10-31 <small>RETRACTED</small></td><td class="yes">counts</td><td class="yes">T3 counts</td></tr>
+              <tr class="row-t4 out"><th scope="row">D4 <small>dispute</small></th><td>T4</td><td>2026-11-01 <small>REVERSED</small></td><td class="no">excluded</td><td class="no">excluded</td></tr>
+            </tbody>
+            <tfoot>
+              <tr><th scope="row" colspan="3">Numerator</th><td><b>5</b> events</td><td><b>4</b> sales</td></tr>
+            </tfoot>
+          </table>
+        </div>
+        <ul class="notes">
+          <li><b>D3 counts</b> because it was reported in October, even though its sale T0 settled on 2026-09-30, outside the denominator.</li>
+          <li><b>D4 is excluded</b>: reported 2026-11-01, after the October window.</li>
+          <li>The fictional rule lists include every status, so WON, WITHDRAWN and RETRACTED events still count. That is a fixture choice, not a statement about any real rule.</li>
+        </ul>
+      </section>
+
+      <section class="denom" aria-labelledby="denom-h">
+        <h3 id="denom-h"><span class="num">B</span> Denominator strip</h3>
+        <p class="denom-sum"><b>10</b> settled sales &middot; <b>$1,000.00</b> gross</p>
+        <ol class="strip" aria-label="Settled October sales in the denominator">
+          <li class="c-t1 hit">T1 <small>2 events</small></li>
+          <li class="c-t2 hit">T2 <small>1 event</small></li>
+          <li class="c-t3 hit">T3 <small>1 event</small></li>
+          <li class="c-t4">T4 <small>none in Oct</small></li>
+          <li>T5</li><li>T6</li><li>T7</li><li>T8</li><li>T9</li><li>T10</li>
+        </ol>
+        <p class="strip-key">Each: SETTLED 2026-10-01, $100.00.</p>
+        <ul class="outside" aria-label="Sales outside the denominator">
+          <li class="c-t0 counted"><b>T0</b> <span class="tag">counted by both rules</span> settled 2026-09-30, $50.00. Outside the month, so not in the denominator; its event D3 still counts.</li>
+          <li><b>T11</b> PENDING, no settled date, $100.00. Excluded from the denominator.</li>
+        </ul>
+        <p class="context"><b>Context, not subtracted:</b> refund Q1 of $100.00 on T2, reported 2026-10-20. Refunds never reduce the numerator, so rule 1 stays 5&nbsp;&divide;&nbsp;10.</p>
+      </section>
+    </div>
+
+    <footer class="sheet-foot">
+      <p>Source: bundled fixture DR-SYN-001 in <code>src/fixture.js</code>, evaluated by the repository engine and documented in <code>README.md</code>. These figures are printed from that fixture, not computed live on this page.</p>
+    </footer>
+  </article>
+
+  <section class="limits" id="limits" aria-labelledby="limits-h">
+    <h2 id="limits-h">What this is not</h2>
+    <dl>
+      <div><dt>Not a real rule</dt><dd>DEMO-EVENT-COUNT and its versions are fictional. They are not Visa VAMP, not Mastercard and not acquirer or processor policy. The 2500&nbsp;bps line is illustrative.</dd></div>
+      <div><dt>Not a decision</dt><dd>Results are for human review. No fine, monitoring-programme or recovery prediction, no risk rating and no compliance determination.</dd></div>
+      <div><dt>Zero is not all-clear</dt><dd>With no settled sales in the month the ratio is undefined, not zero. Fictional merchant M2 shows this in the workbench.</dd></div>
+      <div><dt>No network connection</dt><dd>The workbench runs in your browser and sends nothing. There is no processor feed and no paid service.</dd></div>
+      <div><dt>Imports are unverified</dt><dd>Anything you paste or import is labelled UNVERIFIED USER-SUPPLIED. The app cannot detect or prevent real or sensitive data, so do not paste real cardholder, personal or confidential data.</dd></div>
+    </dl>
+    <p class="cta-row"><a class="cta" href="app/">Open the workbench <span aria-hidden="true">&rarr;</span></a></p>
+  </section>
+</main>
+
+<footer class="colophon">
+  <p>DisputeRadar &middot; synthetic demo &middot; fictional data and fictional illustrative rules only.</p>
+</footer>
+</body>
+</html>
